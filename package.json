@@ -1,0 +1,12 @@
+{
+  "name": "cb-ban-panel-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Discord-linked War Thunder CB ban panel starter",
+  "scripts": {
+    "install:all": "npm --prefix backend install && npm --prefix frontend install && npm --prefix bot install",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:bot": "npm --prefix bot run dev"
+  }
+}

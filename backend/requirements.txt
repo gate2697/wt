@@ -1,0 +1,2 @@
+# Installed by the backend resolver script. You can also install ../requirements.txt from the project root.
+wt-profile-tool==0.4.0
