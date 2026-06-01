@@ -1,5 +1,4 @@
-import dotenv from 'dotenv';
-dotenv.config();
+import './env.js';
 
 function list(name, fallback = '') {
   return (process.env[name] || fallback)
@@ -28,7 +27,7 @@ export const config = {
     hmod: list('CB_HMOD_PERMS', 'cbhmodperms'),
     highmod: list('CB_HIGHMOD_PERMS', 'highmodperms')
   },
-  botApiToken: process.env.BOT_API_TOKEN || 'change-me-bot-token',
+  botApiToken: process.env.BOT_API_TOKEN || process.env.BOT_API_KEY || 'change-me-bot-token',
   warthunder: {
     pythonBin: process.env.PYTHON_BIN || (process.platform === 'win32' ? 'python' : 'python3'),
     resolverScript: process.env.WT_RESOLVER_SCRIPT || '',

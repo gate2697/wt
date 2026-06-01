@@ -33,12 +33,40 @@ That script tries the plain nickname first. If that lookup fails or returns no I
 
 I left the old StatShark-style URL adapter in place too. If you later get a confirmed StatShark lookup endpoint, set `STATSHARK_LOOKUP_URL` and the backend will use that instead of the Python resolver.
 
+
+## Single `.env` setup
+
+Local development now uses one environment file at the project root:
+
+```txt
+cb-ban-panel/
+├─ .env              ← put your real settings here
+├─ .env.example      ← copy this first
+├─ backend/
+├─ bot/
+└─ frontend/
+```
+
+Create it from the root folder:
+
+```bash
+cp .env.example .env
+```
+
+On Windows PowerShell:
+
+```powershell
+copy .env.example .env
+```
+
+The backend, bot, and frontend all read that same root `.env`. The old `backend/.env`, `bot/.env`, and `frontend/.env` files are still supported as optional overrides, but you usually do not need them anymore.
+
 ## Quick start
 
 1. Install Node.js 20+.
 2. Install Python 3.11+ and run `python -m pip install -r requirements.txt`.
-3. Copy `.env.example` to `.env` in `backend`, `frontend`, and `bot` where applicable.
-4. Fill in Discord app/bot credentials.
+3. Copy the root `.env.example` to a single root `.env` file.
+4. Fill in Discord app/bot credentials in that one root `.env`.
 5. From this folder:
 
 ```bash
@@ -57,7 +85,7 @@ Create a Discord application:
 
 - OAuth2 redirect URL: `http://localhost:4000/auth/discord/callback`
 - Scopes: `identify guilds guilds.members.read`
-- Bot token: put in `bot/.env`
+- Bot token: put in the root `.env`
 
 Role/perms are checked by role names or IDs in backend env:
 
@@ -91,7 +119,7 @@ You can use comma-separated role names or role IDs.
 
 ### Bot bridge
 
-Protected by `BOT_API_TOKEN` header: `Authorization: Bearer <token>`.
+Protected by `BOT_API_TOKEN` from the root `.env` header: `Authorization: Bearer <token>`.
 
 - `POST /api/bot/playerlist` bot posts active players
 - `GET /api/bot/playerlist` panel reads active players
@@ -105,8 +133,8 @@ Protected by `BOT_API_TOKEN` header: `Authorization: Bearer <token>`.
 
 When a ban is created, the backend now checks `player_links` for a linked War Thunder account. If it finds a linked site/Discord user, it will try to notify them in two ways:
 
-- Discord DM using `DISCORD_BOT_TOKEN` in `backend/.env`
-- Email using the SMTP settings in `backend/.env`
+- Discord DM using `DISCORD_BOT_TOKEN` in the root `.env`
+- Email using the SMTP settings in the root `.env`
 
 The Discord OAuth login now requests the `email` scope so the site can store a verified Discord account email. Email notifications only send when the linked user has an email saved and SMTP is configured. Discord DMs only send when the backend has a bot token and the user allows DMs from the bot/server. Notification attempts are saved in `notification_log` so failed DMs/emails do not break ban creation.
 
@@ -162,7 +190,7 @@ The resolver does not blindly use the first match. For an unsuffixed name it che
 
 ## Latest UI/server-lock changes
 
-This build is locked to Discord server `1495608662025048125` by default. Set this in `backend/.env`:
+This build is locked to Discord server `1495608662025048125` by default. Set this in the root `.env`:
 
 ```env
 DISCORD_GUILD_ID=1495608662025048125

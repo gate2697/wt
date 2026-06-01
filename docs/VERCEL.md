@@ -117,3 +117,10 @@ https://YOUR-BACKEND-DOMAIN.com/api/bans/active
 The current backend uses SQLite and a live server process. Vercel can run API functions, but the function filesystem is not a good permanent database. To make the backend 100% serverless, switch the database layer to Postgres, Turso/libSQL, Supabase, Neon, or Upstash Redis.
 
 This proxy setup is the fastest path to make the Vercel site work correctly without losing bans/playerlist data.
+
+
+## Local `.env` note
+
+For local development, this project now uses one `.env` file in the project root. Vercel does not read your local `.env` after deployment, so add production values in the Vercel dashboard under Project → Settings → Environment Variables.
+
+Keep `BACKEND_URL` in Vercel pointed at your real always-on backend host.

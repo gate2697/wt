@@ -1,9 +1,14 @@
 import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
-const BOT_API_TOKEN = process.env.BOT_API_TOKEN || 'change-me-bot-token';
+const BACKEND_URL = process.env.BACKEND_URL || process.env.SITE_API_URL || 'http://localhost:4000';
+const BOT_API_TOKEN = process.env.BOT_API_TOKEN || process.env.BOT_API_KEY || 'change-me-bot-token';
 
 async function backend(path, options = {}) {
   const res = await fetch(`${BACKEND_URL}${path}`, {
@@ -27,9 +32,10 @@ const commands = [
 ].map(c => c.toJSON());
 
 async function registerCommands(clientId) {
-  if (!process.env.DISCORD_BOT_TOKEN || !process.env.GUILD_ID) return;
+  const guildId = process.env.GUILD_ID || process.env.DISCORD_GUILD_ID;
+  if (!process.env.DISCORD_BOT_TOKEN || !guildId) return;
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
-  await rest.put(Routes.applicationGuildCommands(clientId, process.env.GUILD_ID), { body: commands });
+  await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
   console.log('Slash commands registered.');
 }
 

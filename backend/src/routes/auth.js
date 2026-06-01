@@ -7,12 +7,16 @@ import { computePerms } from '../auth/perms.js';
 
 export const authRouter = express.Router();
 
-authRouter.get('/discord', (req, res) => {
-  const state = nanoid(32);
-  req.session.oauthState = state;
-  res.redirect(discordAuthUrl(state));
-});
+router.get("/discord", (req, res) => {
+  const url = new URL("https://discord.com/oauth2/authorize");
 
+  url.searchParams.set("client_id", process.env.DISCORD_CLIENT_ID);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("redirect_uri", process.env.DISCORD_REDIRECT_URI);
+  url.searchParams.set("scope", "identify guilds email");
+
+  res.redirect(url.toString());
+});
 authRouter.get('/discord/callback', async (req, res, next) => {
   try {
     if (!req.query.code || req.query.state !== req.session.oauthState) {
