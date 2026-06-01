@@ -29,7 +29,7 @@ The backend calls:
 scripts/resolve_wt_user.py <username>
 ```
 
-That script returns JSON with the matched nickname and War Thunder user ID. If the resolver fails, `ALLOW_UNRESOLVED_BANS=true` lets the panel still save bans by username only. Set `ALLOW_UNRESOLVED_BANS=false` if you want ban creation to fail whenever an ID cannot be resolved.
+That script tries the plain nickname first. If that lookup fails or returns no ID, it automatically retries with `@live`, then `@psn`. It returns JSON with the matched nickname, War Thunder user ID, and which lookup name worked. If the resolver fails, `ALLOW_UNRESOLVED_BANS=true` lets the panel still save bans by username only. Set `ALLOW_UNRESOLVED_BANS=false` if you want ban creation to fail whenever an ID cannot be resolved.
 
 I left the old StatShark-style URL adapter in place too. If you later get a confirmed StatShark lookup endpoint, set `STATSHARK_LOOKUP_URL` and the backend will use that instead of the Python resolver.
 
@@ -103,3 +103,8 @@ Protected by `BOT_API_TOKEN` header: `Authorization: Bearer <token>`.
 ## Keep building from here
 
 The frontend is intentionally simple so you can keep changing it. The backend is split into services/routes so adding features is straightforward.
+
+
+## Duplicate-safe War Thunder lookups
+
+The resolver does not blindly use the first match. For an unsuffixed name it checks the normal nickname, `@live`, and `@psn`. If those resolve to different War Thunder IDs, the API returns `duplicate_accounts_found` and asks for the exact suffixed username or a manual ID. This is intentional so a mod does not ban the wrong account when both names exist.

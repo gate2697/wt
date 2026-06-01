@@ -75,6 +75,11 @@ function resolveWithPython(username) {
         resolve({
           id: String(payload.id),
           username: payload.username || username,
+          requestedUsername: payload.requestedUsername || username,
+          resolvedLookupName: payload.resolvedLookupName || payload.username || username,
+          usedFallback: Boolean(payload.usedFallback),
+          attemptedUsernames: payload.attemptedUsernames || [username],
+          duplicateCheck: payload.duplicateCheck || null,
           raw: payload,
           source: 'wt-profile-tool',
           matchType: payload.matchType

@@ -46,10 +46,28 @@ curl http://localhost:4000/api/public/bans/TargetName
 
 When `POST /api/bans` receives a `username` and no `warthunderId`, the backend tries to resolve the ID automatically using `wt-profile-tool` through `scripts/resolve_wt_user.py`.
 
-The resolver prefers:
+The resolver tries lookup names in this order when the submitted name has no platform suffix:
+
+1. `username`
+2. `username@live`
+3. `username@psn`
+
+For each lookup name, it prefers:
 
 1. exact nickname match,
 2. case-insensitive exact match,
 3. first prefix result.
 
-The full resolver payload is stored in audit data so you can check whether it was an exact match or a prefix fallback. For serious moderation, ask mods to verify prefix fallback matches before enforcing the ban.
+The full resolver payload is stored in audit data, including `resolvedLookupName`, `usedFallback`, and `attemptedUsernames`, so you can check whether it resolved the plain name or a platform-suffixed account. For serious moderation, ask mods to verify prefix fallback matches before enforcing the ban.
+
+### Duplicate-safe War Thunder username lookup
+
+When a mod enters `SomeName`, the resolver checks all of these before saving the ban:
+
+```txt
+SomeName
+SomeName@live
+SomeName@psn
+```
+
+If only one unique War Thunder ID is found, the ban is saved with that ID. If more than one unique ID is found, the ban API rejects the lookup with `duplicate_accounts_found` so a mod can enter the exact suffixed name or manually provide the War Thunder ID. This prevents accidentally banning `SomeName` when the intended player was `SomeName@live`, or the other way around.
