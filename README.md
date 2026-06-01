@@ -100,6 +100,57 @@ Protected by `BOT_API_TOKEN` header: `Authorization: Bearer <token>`.
 - `GET /api/bot/cb-status` returns whether CB is online
 - `POST /api/bot/cb-status` bot updates online status
 
+
+## Ban notifications
+
+When a ban is created, the backend now checks `player_links` for a linked War Thunder account. If it finds a linked site/Discord user, it will try to notify them in two ways:
+
+- Discord DM using `DISCORD_BOT_TOKEN` in `backend/.env`
+- Email using the SMTP settings in `backend/.env`
+
+The Discord OAuth login now requests the `email` scope so the site can store a verified Discord account email. Email notifications only send when the linked user has an email saved and SMTP is configured. Discord DMs only send when the backend has a bot token and the user allows DMs from the bot/server. Notification attempts are saved in `notification_log` so failed DMs/emails do not break ban creation.
+
+Required backend env for Discord DMs:
+
+```env
+DISCORD_BOT_TOKEN=your_bot_token_here
+```
+
+Required backend env for email:
+
+```env
+NOTIFY_FROM_EMAIL="CB Ban Panel <no-reply@example.com>"
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_smtp_user
+SMTP_PASS=your_smtp_password_or_app_password
+```
+
+### Linking a War Thunder account to a site user
+
+1. The user logs in with Discord.
+2. The site creates a link code:
+
+```http
+POST /api/link-codes
+{ "serviceName": "warthunder", "minutesValid": 15 }
+```
+
+3. Your War Thunder bot or external service claims it after confirming the player owns that account:
+
+```http
+POST /api/link-codes/claim
+{
+  "code": "ABCD1234",
+  "serviceName": "warthunder",
+  "externalId": "62681955",
+  "externalUsername": "gatetheproto"
+}
+```
+
+After that, if `62681955` gets banned, the linked Discord/site user gets the ban reason, start time, end time, and ban length.
+
 ## Keep building from here
 
 The frontend is intentionally simple so you can keep changing it. The backend is split into services/routes so adding features is straightforward.
@@ -108,3 +159,25 @@ The frontend is intentionally simple so you can keep changing it. The backend is
 ## Duplicate-safe War Thunder lookups
 
 The resolver does not blindly use the first match. For an unsuffixed name it checks the normal nickname, `@live`, and `@psn`. If those resolve to different War Thunder IDs, the API returns `duplicate_accounts_found` and asks for the exact suffixed username or a manual ID. This is intentional so a mod does not ban the wrong account when both names exist.
+
+## Latest UI/server-lock changes
+
+This build is locked to Discord server `1495608662025048125` by default. Set this in `backend/.env`:
+
+```env
+DISCORD_GUILD_ID=1495608662025048125
+DISCORD_REQUIRE_GUILD_MEMBERSHIP=true
+```
+
+The frontend now uses tabbed panel pages for Public, Mod, HMod, High Mod, and Linking. The live player list is pinned on the right side and sized to about 10% of the page on desktop. Clicking a live player fills their name into the Mod ban form.
+
+The ban form includes premade ban messages like `Random killing` and `Disobeying staff`. Staff can save custom reasons locally; those are stored in the browser cookie `cb_custom_ban_reasons` so each mod can keep their own shortcuts without changing the server database.
+
+## Vercel deploy
+
+This zip includes a Vercel-ready frontend/proxy setup:
+
+- `vercel.json` builds `frontend/`.
+- `api/[...path].js` proxies Vercel `/api/...` and `/auth/...` requests to your real backend.
+- Set `BACKEND_URL` in Vercel to your hosted backend URL.
+- See `docs/VERCEL.md` for the full setup.

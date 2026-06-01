@@ -1,6 +1,7 @@
 import { db } from '../db/database.js';
 import { resolveWarThunderPlayer } from './statshark.js';
 import { audit } from './audit.js';
+import { notifyLinkedUsersOfBan } from './notifications.js';
 
 function nowIso() { return new Date().toISOString(); }
 function activeWhere(now = nowIso()) {
@@ -29,7 +30,9 @@ export async function createBan(input, actor) {
 
   if (resolved.id) upsertAlias(resolved.id, resolved.username || input.username);
   audit({ action: 'ban.create', actorUserId: actor?.id, actorLabel: actor?.username, targetType: 'ban', targetId: result.lastInsertRowid, data: { input, resolved } });
-  return getBan(result.lastInsertRowid);
+  const ban = getBan(result.lastInsertRowid);
+  const notifications = await notifyLinkedUsersOfBan(ban);
+  return { ...ban, notifications };
 }
 
 export function getBan(id) {

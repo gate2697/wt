@@ -25,16 +25,22 @@ authRouter.get('/discord/callback', async (req, res, next) => {
     const perms = computePerms(roles);
     const username = `${discordUser.username}${discordUser.discriminator && discordUser.discriminator !== '0' ? '#' + discordUser.discriminator : ''}`;
 
-    const result = db.prepare(`INSERT INTO users (discord_id, username, avatar, roles_json, perms_json)
-      VALUES (?, ?, ?, ?, ?)
+    const result = db.prepare(`INSERT INTO users (discord_id, username, avatar, email, email_verified, roles_json, perms_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(discord_id) DO UPDATE SET username=excluded.username, avatar=excluded.avatar,
+      email=excluded.email, email_verified=excluded.email_verified,
       roles_json=excluded.roles_json, perms_json=excluded.perms_json, updated_at=CURRENT_TIMESTAMP`)
-      .run(discordUser.id, username, discordUser.avatar || null, JSON.stringify(roles), JSON.stringify(perms));
+      .run(discordUser.id, username, discordUser.avatar || null, discordUser.email || null, discordUser.verified ? 1 : 0, JSON.stringify(roles), JSON.stringify(perms));
 
     const user = db.prepare('SELECT * FROM users WHERE discord_id=?').get(discordUser.id);
-    req.session.user = { id: user.id, discordId: discordUser.id, username, avatar: discordUser.avatar, roles, perms };
+    req.session.user = { id: user.id, discordId: discordUser.id, username, avatar: discordUser.avatar, email: user.email, roles, perms };
     res.redirect(config.frontendUrl);
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err.message === 'not_in_required_discord_server') {
+      return res.status(403).send('This panel is locked to the configured CB Discord server. Join the server first, then log in again.');
+    }
+    next(err);
+  }
 });
 
 authRouter.get('/me', (req, res) => {

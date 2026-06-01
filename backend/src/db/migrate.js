@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
   discord_id TEXT UNIQUE NOT NULL,
   username TEXT NOT NULL,
   avatar TEXT,
+  email TEXT,
+  email_verified INTEGER NOT NULL DEFAULT 0,
   roles_json TEXT NOT NULL DEFAULT '[]',
   perms_json TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -23,6 +25,22 @@ CREATE TABLE IF NOT EXISTS link_codes (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(created_by_user_id) REFERENCES users(id)
 );
+
+CREATE TABLE IF NOT EXISTS player_links (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  service_name TEXT NOT NULL DEFAULT 'warthunder',
+  external_id TEXT NOT NULL,
+  external_username TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(user_id) REFERENCES users(id),
+  UNIQUE(service_name, external_id),
+  UNIQUE(user_id, service_name, external_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_player_links_service_id ON player_links(service_name, external_id);
+CREATE INDEX IF NOT EXISTS idx_player_links_username ON player_links(external_username);
 
 CREATE TABLE IF NOT EXISTS bans (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,6 +93,17 @@ CREATE TABLE IF NOT EXISTS cb_status (
 );
 INSERT OR IGNORE INTO cb_status (id, online, name, invite_hint) VALUES (1, 0, 'CB', 'Ask a moderator for an invite.');
 
+CREATE TABLE IF NOT EXISTS notification_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ban_id INTEGER NOT NULL,
+  user_id INTEGER,
+  discord_result_json TEXT NOT NULL DEFAULT '{}',
+  email_result_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(ban_id) REFERENCES bans(id),
+  FOREIGN KEY(user_id) REFERENCES users(id)
+);
+
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   action TEXT NOT NULL,
@@ -88,4 +117,13 @@ CREATE TABLE IF NOT EXISTS audit_log (
 `;
 
 db.exec(schema);
+
+// Safe upgrades for older local databases. SQLite cannot add IF NOT EXISTS columns.
+for (const stmt of [
+  `ALTER TABLE users ADD COLUMN email TEXT`,
+  `ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0`
+]) {
+  try { db.exec(stmt); } catch (err) { if (!String(err.message).includes('duplicate column')) throw err; }
+}
+
 console.log('Database migrated.');

@@ -7,7 +7,7 @@ export function discordAuthUrl(state) {
     client_id: config.discord.clientId,
     redirect_uri: config.discord.redirectUri,
     response_type: 'code',
-    scope: 'identify guilds guilds.members.read',
+    scope: 'identify email guilds guilds.members.read',
     state
   });
   return `${API}/oauth2/authorize?${params.toString()}`;
@@ -43,7 +43,14 @@ export async function fetchGuildMember(accessToken) {
   const res = await fetch(`${API}/users/@me/guilds/${config.discord.guildId}/member`, {
     headers: { authorization: `Bearer ${accessToken}` }
   });
-  if (res.status === 404) return { roles: [] };
+  if (res.status === 404) {
+    if (config.discord.requireGuildMembership) {
+      const err = new Error('not_in_required_discord_server');
+      err.statusCode = 403;
+      throw err;
+    }
+    return { roles: [] };
+  }
   if (!res.ok) throw new Error(`Discord guild member fetch failed: ${res.status}`);
   return res.json();
 }
