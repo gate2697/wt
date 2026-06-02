@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { db } from '../db/database.js';
+import { all, run } from '../db/database.js';
 import { config } from '../config.js';
 
 function formatDuration(ban) {
@@ -21,18 +21,18 @@ export function buildBanNotice(ban) {
   };
 }
 
-function getLinkedUsersForBan(ban) {
+async function getLinkedUsersForBan(ban) {
   if (!ban.warthunder_id && !ban.warthunder_username) return [];
-  return db.prepare(`
+  return await all(`
     SELECT DISTINCT users.*
     FROM users
     JOIN player_links ON player_links.user_id = users.id
     WHERE player_links.service_name = 'warthunder'
       AND (
         (? IS NOT NULL AND player_links.external_id = ?)
-        OR lower(player_links.external_username) = lower(?)
+        OR LOWER(player_links.external_username) = LOWER(?)
       )
-  `).all(ban.warthunder_id || null, ban.warthunder_id || null, ban.warthunder_username || '');
+  `, [ban.warthunder_id || null, ban.warthunder_id || null, ban.warthunder_username || '']);
 }
 
 async function sendDiscordDm(discordId, message) {
@@ -66,7 +66,7 @@ async function sendEmail(to, subject, text) {
 }
 
 export async function notifyLinkedUsersOfBan(ban) {
-  const users = getLinkedUsersForBan(ban);
+  const users = await getLinkedUsersForBan(ban);
   const notice = buildBanNotice(ban);
   const results = [];
   for (const user of users) {
@@ -75,8 +75,8 @@ export async function notifyLinkedUsersOfBan(ban) {
     catch (err) { entry.discord = { ok: false, error: err.message }; }
     try { entry.emailResult = await sendEmail(user.email, notice.subject, notice.text); }
     catch (err) { entry.emailResult = { ok: false, error: err.message }; }
-    db.prepare(`INSERT INTO notification_log (ban_id, user_id, discord_result_json, email_result_json)
-      VALUES (?, ?, ?, ?)`).run(ban.id, user.id, JSON.stringify(entry.discord), JSON.stringify(entry.emailResult));
+    await run(`INSERT INTO notification_log (ban_id, user_id, discord_result_json, email_result_json)
+      VALUES (?, ?, ?, ?)`, [ban.id, user.id, JSON.stringify(entry.discord), JSON.stringify(entry.emailResult)]);
     results.push(entry);
   }
   return { linkedUsers: users.length, results };

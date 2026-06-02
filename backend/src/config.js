@@ -12,7 +12,15 @@ export const config = {
   publicBaseUrl: process.env.PUBLIC_BASE_URL || 'http://localhost:4000',
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
   sessionSecret: process.env.SESSION_SECRET || 'dev-secret-change-me',
-  databasePath: process.env.DATABASE_PATH || './data/app.sqlite',
+  cookiesSecure: process.env.COOKIE_SECURE === 'true',
+  mysql: {
+    host: process.env.MYSQL_HOST || process.env.DB_HOST || 'localhost',
+    port: Number(process.env.MYSQL_PORT || process.env.DB_PORT || 3306),
+    user: process.env.MYSQL_USER || process.env.DB_USER || '',
+    password: process.env.MYSQL_PASSWORD || process.env.DB_PASSWORD || '',
+    database: process.env.MYSQL_DATABASE || process.env.DB_NAME || '',
+    connectionLimit: Number(process.env.MYSQL_CONNECTION_LIMIT || 10)
+  },
   discord: {
     clientId: process.env.DISCORD_CLIENT_ID || '',
     clientSecret: process.env.DISCORD_CLIENT_SECRET || '',

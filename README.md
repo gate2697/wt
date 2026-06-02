@@ -13,6 +13,10 @@ It includes:
 - Bot bridge API for live player list, ban checks, and kick decisions
 - Discord bot starter that can sync guild member roles and expose playerlist hooks
 
+## Plesk / Cybrancee database note
+
+This build uses **MySQL/MariaDB** instead of `better-sqlite3`, so it is much safer on Plesk Node.js hosting. Create a MySQL database in Plesk and fill out `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE` in the root `.env`. See `docs/MYSQL_PLESK.md`.
+
 ## War Thunder ID resolver
 
 The simple/default setup now uses Python + `wt-profile-tool` to resolve a War Thunder nickname into a stable user ID. PyPI describes `wt-profile-tool` as a community package for fetching War Thunder profiles, including getting a user ID by nickname/prefix and profile by ID. It is not an official Gaijin package.

@@ -23,26 +23,38 @@ bansRouter.post('/', requirePerm('mod'), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-bansRouter.get('/active', requirePerm('mod'), (req, res) => res.json({ bans: listActiveBans() }));
-bansRouter.get('/:id', requirePerm('mod'), (req, res) => {
-  const ban = getBan(req.params.id);
-  if (!ban) return res.status(404).json({ error: 'not_found' });
-  res.json({ ban });
+bansRouter.get('/active', requirePerm('mod'), async (req, res, next) => {
+  try { res.json({ bans: await listActiveBans() }); }
+  catch (err) { next(err); }
 });
 
-bansRouter.patch('/:id', requirePerm('hmod'), (req, res) => {
-  const ban = updateBan(req.params.id, req.body, req.session.user);
-  if (!ban) return res.status(404).json({ error: 'not_found' });
-  res.json({ ban });
+bansRouter.get('/:id', requirePerm('mod'), async (req, res, next) => {
+  try {
+    const ban = await getBan(req.params.id);
+    if (!ban) return res.status(404).json({ error: 'not_found' });
+    res.json({ ban });
+  } catch (err) { next(err); }
 });
 
-bansRouter.post('/:id/revoke', requirePerm('hmod'), (req, res) => {
-  const ban = revokeBan(req.params.id, req.body?.reason, req.session.user);
-  if (!ban) return res.status(404).json({ error: 'not_found' });
-  res.json({ ban });
+bansRouter.patch('/:id', requirePerm('hmod'), async (req, res, next) => {
+  try {
+    const ban = await updateBan(req.params.id, req.body, req.session.user);
+    if (!ban) return res.status(404).json({ error: 'not_found' });
+    res.json({ ban });
+  } catch (err) { next(err); }
 });
 
-publicBansRouter.get('/:player', (req, res) => {
-  const bans = publicLookup(req.params.player);
-  res.json({ banned: bans.length > 0, bans });
+bansRouter.post('/:id/revoke', requirePerm('hmod'), async (req, res, next) => {
+  try {
+    const ban = await revokeBan(req.params.id, req.body?.reason, req.session.user);
+    if (!ban) return res.status(404).json({ error: 'not_found' });
+    res.json({ ban });
+  } catch (err) { next(err); }
+});
+
+publicBansRouter.get('/:player', async (req, res, next) => {
+  try {
+    const bans = await publicLookup(req.params.player);
+    res.json({ banned: bans.length > 0, bans });
+  } catch (err) { next(err); }
 });

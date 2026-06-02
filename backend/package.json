@@ -1,6 +1,6 @@
 {
   "name": "cb-ban-panel-backend",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "main": "src/server.js",
   "scripts": {
@@ -9,14 +9,14 @@
     "migrate": "node src/db/migrate.js"
   },
   "dependencies": {
-    "better-sqlite3": "^11.10.0",
-    "connect-sqlite3": "^0.9.16",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-mysql-session": "^3.0.3",
     "express-rate-limit": "^7.5.0",
     "express-session": "^1.18.1",
     "helmet": "^8.0.0",
+    "mysql2": "^3.11.5",
     "nanoid": "^5.0.9",
     "nodemailer": "^6.9.16",
     "zod": "^3.24.1"
