@@ -1,12 +1,26 @@
 {
-  "name": "cb-ban-panel-workspace",
+  "name": "cb-ban-panel-plesk-passenger",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.1.0",
-  "description": "Discord-linked War Thunder CB ban panel starter",
+  "type": "module",
+  "main": "_passenger.cjs",
   "scripts": {
-    "install:all": "npm --prefix backend install && npm --prefix frontend install && npm --prefix bot install",
-    "dev:backend": "npm --prefix backend run dev",
-    "dev:frontend": "npm --prefix frontend run dev",
-    "dev:bot": "npm --prefix bot run dev"
+    "start": "node _passenger.cjs",
+    "migrate": "node src/db/migrate.js",
+    "build:frontend": "npm --prefix frontend-src install && npm --prefix frontend-src run build",
+    "install:bot": "npm --prefix bot install"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-mysql-session": "^3.0.3",
+    "express-rate-limit": "^7.5.0",
+    "express-session": "^1.18.1",
+    "helmet": "^8.0.0",
+    "mysql2": "^3.11.5",
+    "nanoid": "^5.0.9",
+    "nodemailer": "^6.9.16",
+    "zod": "^3.24.1"
   }
 }
