@@ -94,3 +94,18 @@ After replacing the files, run **NPM install** again and then **Restart App** in
 ```json
 {"user":null}
 ```
+
+## Discord OAuth 503/500 check
+
+Open `/health` after restarting the app. The `discordOAuth` object must show:
+
+- `clientIdConfigured: true`
+- `clientSecretConfigured: true`
+- `redirectUri: "https://golf-cb.xyz/auth/discord/callback"`
+- `guildIdConfigured: true`
+
+The Discord Developer Portal OAuth2 redirect must match exactly:
+
+`https://golf-cb.xyz/auth/discord/callback`
+
+Do not add a trailing slash.

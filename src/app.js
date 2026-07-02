@@ -47,7 +47,13 @@ export function createApp() {
     service: 'cb-ban-panel',
     runtime: 'plesk-passenger',
     database: 'mysql',
-    time: new Date().toISOString()
+    time: new Date().toISOString(),
+    discordOAuth: {
+      clientIdConfigured: Boolean(config.discord.clientId),
+      clientSecretConfigured: Boolean(config.discord.clientSecret),
+      redirectUri: config.discord.redirectUri || null,
+      guildIdConfigured: Boolean(config.discord.guildId)
+    }
   }));
 
   app.use('/auth', authRouter);
