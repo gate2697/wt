@@ -1,24 +1,22 @@
 import http from 'node:http';
 import { createApp } from './app.js';
-import { migrate } from './db/migrate.js';
 import { closePool } from './db/database.js';
-import { validateProductionConfig } from './config.js';
 
-// Passenger supplies PORT using reverse port binding. There is intentionally no
-// fallback port because this build is designed to run only through Plesk.
+// Plesk/Passenger provides PORT. Never run migrations or wait for MySQL here:
+// Passenger must be able to start the web process even when the database is
+// temporarily unavailable or has not been migrated yet.
 const passengerPort = process.env.PORT;
 if (!passengerPort) {
-  throw new Error('Plesk/Passenger did not provide process.env.PORT. Set app.js as the Plesk Application Startup File and start it using Restart App, not npm run start.');
+  throw new Error(
+    'Plesk/Passenger did not provide process.env.PORT. Set server.cjs as the Application Startup File and restart the Node.js app from Plesk.'
+  );
 }
-
-validateProductionConfig();
-await migrate();
 
 const app = createApp();
 const server = http.createServer(app);
 
 server.listen(passengerPort, () => {
-  console.log(`CB Ban Panel is running under Plesk/Passenger on the Passenger-managed socket.`);
+  console.log(`CB Ban Panel started under Plesk/Passenger on port ${passengerPort}.`);
 });
 
 server.on('error', (error) => {
@@ -26,9 +24,13 @@ server.on('error', (error) => {
 });
 
 async function shutdown(signal) {
-  console.log(`Received ${signal}; closing database connections.`);
+  console.log(`Received ${signal}; shutting down.`);
   server.close(async () => {
-    try { await closePool(); } catch (error) { console.error('Database shutdown error:', error); }
+    try {
+      await closePool();
+    } catch (error) {
+      console.error('Database shutdown error:', error);
+    }
     process.exit(0);
   });
 }
