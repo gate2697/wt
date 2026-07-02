@@ -1,13 +1,17 @@
 import { config } from '../config.js';
 
-function hasAny(roles, accepted) {
-  const normalizedRoles = new Set((roles || []).map((r) => String(r).toLowerCase()));
-  return accepted.some((r) => normalizedRoles.has(String(r).toLowerCase()));
+function normalize(value) {
+  return String(value || '').trim().toLowerCase();
 }
 
-export function computePerms(roles = []) {
-  const highmod = hasAny(roles, config.roles.highmod);
-  const hmod = highmod || hasAny(roles, config.roles.hmod);
-  const mod = hmod || hasAny(roles, config.roles.mod);
+function hasAny(userRoleIds = [], userRoleNames = [], accepted = []) {
+  const owned = new Set([...userRoleIds, ...userRoleNames].map(normalize).filter(Boolean));
+  return accepted.some((role) => owned.has(normalize(role)));
+}
+
+export function computePerms(roleIds = [], roleNames = []) {
+  const highmod = hasAny(roleIds, roleNames, config.roles.highmod);
+  const hmod = highmod || hasAny(roleIds, roleNames, config.roles.hmod);
+  const mod = hmod || hasAny(roleIds, roleNames, config.roles.mod);
   return { mod, hmod, highmod };
 }

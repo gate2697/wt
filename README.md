@@ -1,12 +1,17 @@
-# CB Ban Panel — Plesk/Passenger build
+# CB Ban Panel — Plesk Native Build
 
-This is the Plesk-native build of the Discord-linked War Thunder CB ban panel.
+This version is rebuilt to run cleanly as a single Plesk/Passenger Node.js web app.
 
-- One Passenger-managed Node.js web application
-- React frontend served from the same domain
-- Discord OAuth login at `/auth/discord`
-- MySQL/MariaDB storage
-- Ban API, public ban lookup, link codes, live player list, role-based panels, notifications, and War Thunder ID resolver
-- No fixed port and no Vercel proxy
+## What changed
 
-Read `docs/PLESK_PASSENGER.md` before deploying.
+- Native Plesk startup file: `server.cjs`
+- React frontend served from the same domain through `public/`
+- Discord OAuth route: `/auth/discord`
+- OAuth callback: `/auth/discord/callback`
+- Auth status: `/auth/me` and `/api/auth/me`
+- MySQL/MariaDB storage and automatic migration script
+- Role permissions now support Discord role IDs **and** role names
+- UI redesigned with cleaner mod, HMod, High Mod, public lookup, linking, and live-player panels
+- No Vercel proxy, no fixed port, no manually configured listener port
+
+Read `docs/PLESK_PASSENGER.md` before uploading.

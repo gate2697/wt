@@ -33,7 +33,14 @@ export function createApp() {
   });
 
   app.use(helmet({ crossOriginResourcePolicy: false }));
-  app.use(cors({ origin: config.frontendUrl, credentials: true }));
+  app.use(cors({
+    origin(origin, cb) {
+      if (!origin) return cb(null, true);
+      const allowed = new Set([config.frontendUrl, config.publicBaseUrl].filter(Boolean));
+      return cb(null, allowed.has(origin));
+    },
+    credentials: true
+  }));
   app.use(express.json({ limit: '1mb' }));
   app.use(rateLimit({ windowMs: 60_000, limit: 180, standardHeaders: true, legacyHeaders: false }));
   app.use(session({
@@ -59,6 +66,7 @@ export function createApp() {
   }));
 
   app.use('/auth', authRouter);
+  app.use('/api/auth', authRouter);
   app.use('/api/link-codes', linkCodesRouter);
   app.use('/api/bans', bansRouter);
   app.use('/api/public/bans', publicBansRouter);
@@ -75,7 +83,9 @@ export function createApp() {
   app.use((err, req, res, next) => {
     console.error(err);
     if (err?.name === 'ZodError') return res.status(400).json({ error: 'validation_error', details: err.errors });
-    res.status(err?.statusCode || 500).json({ error: err.message || 'server_error' });
+    const status = err?.statusCode || 500;
+    const safeMessage = status >= 500 && process.env.NODE_ENV === 'production' ? 'server_error' : (err.message || 'server_error');
+    res.status(status).json({ error: safeMessage });
   });
 
   return app;

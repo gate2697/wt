@@ -3,12 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "main": "_passenger.cjs",
+  "main": "server.cjs",
   "scripts": {
-    "start": "node _passenger.cjs",
+    "start": "node server.cjs",
     "migrate": "node src/db/migrate.js",
     "build:frontend": "npm --prefix frontend-src install && npm --prefix frontend-src run build",
-    "install:bot": "npm --prefix bot install"
+    "install:bot": "npm --prefix bot install",
+    "plesk:start": "node server.cjs"
   },
   "dependencies": {
     "cors": "^2.8.5",

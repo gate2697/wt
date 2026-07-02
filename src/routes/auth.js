@@ -20,9 +20,10 @@ authRouter.get('/discord/callback', async (req, res, next) => {
     }
     const token = await exchangeCode(String(req.query.code));
     const discordUser = await fetchDiscordUser(token.access_token);
-    const member = await fetchGuildMember(token.access_token);
+    const member = await fetchGuildMember(token.access_token, discordUser.id);
     const roles = member.roles || [];
-    const perms = computePerms(roles);
+    const roleNames = member.roleNames || [];
+    const perms = computePerms(roles, roleNames);
     const username = `${discordUser.username}${discordUser.discriminator && discordUser.discriminator !== '0' ? '#' + discordUser.discriminator : ''}`;
 
     await run(`INSERT INTO users (discord_id, username, avatar, email, email_verified, roles_json, perms_json)
@@ -30,10 +31,10 @@ authRouter.get('/discord/callback', async (req, res, next) => {
       ON DUPLICATE KEY UPDATE username=VALUES(username), avatar=VALUES(avatar),
       email=VALUES(email), email_verified=VALUES(email_verified),
       roles_json=VALUES(roles_json), perms_json=VALUES(perms_json)`,
-      [discordUser.id, username, discordUser.avatar || null, discordUser.email || null, discordUser.verified ? 1 : 0, JSON.stringify(roles), JSON.stringify(perms)]);
+      [discordUser.id, username, discordUser.avatar || null, discordUser.email || null, discordUser.verified ? 1 : 0, JSON.stringify({ ids: roles, names: roleNames }), JSON.stringify(perms)]);
 
     const user = await get('SELECT * FROM users WHERE discord_id=?', [discordUser.id]);
-    req.session.user = { id: user.id, discordId: discordUser.id, username, avatar: discordUser.avatar, email: user.email, roles, perms };
+    req.session.user = { id: user.id, discordId: discordUser.id, username, avatar: discordUser.avatar, email: user.email, roles, roleNames, perms };
     res.redirect(config.frontendUrl);
   } catch (err) {
     if (err.message === 'not_in_required_discord_server') {

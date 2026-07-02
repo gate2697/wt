@@ -23,7 +23,8 @@ export const config = {
   discord: {
     clientId: process.env.DISCORD_CLIENT_ID || '',
     clientSecret: process.env.DISCORD_CLIENT_SECRET || '',
-    redirectUri: process.env.DISCORD_REDIRECT_URI || '',
+    redirectUri: process.env.DISCORD_REDIRECT_URI || `${process.env.PUBLIC_BASE_URL || process.env.FRONTEND_URL || ''}/auth/discord/callback`,
+    oauthScopes: process.env.DISCORD_OAUTH_SCOPES || 'identify email guilds',
     // Locked to your CB Discord server by default.
     guildId: process.env.DISCORD_GUILD_ID || '1495608662025048125',
     requireGuildMembership: process.env.DISCORD_REQUIRE_GUILD_MEMBERSHIP !== 'false',
@@ -65,7 +66,7 @@ export function validateProductionConfig() {
   if (!config.sessionSecret || config.sessionSecret === 'dev-secret-change-me') missing.push('SESSION_SECRET');
   if (!config.discord.clientId) missing.push('DISCORD_CLIENT_ID');
   if (!config.discord.clientSecret) missing.push('DISCORD_CLIENT_SECRET');
-  if (!config.discord.redirectUri) missing.push('DISCORD_REDIRECT_URI');
-  if (!config.frontendUrl) missing.push('FRONTEND_URL');
+  if (!config.discord.redirectUri || config.discord.redirectUri.startsWith('/')) missing.push('PUBLIC_BASE_URL or DISCORD_REDIRECT_URI');
+  if (!config.frontendUrl) missing.push('FRONTEND_URL or PUBLIC_BASE_URL');
   if (missing.length) throw new Error(`Missing required Plesk environment variables: ${missing.join(', ')}`);
 }
