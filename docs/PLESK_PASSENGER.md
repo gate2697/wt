@@ -84,3 +84,13 @@ https://golf-cb.xyz/auth/me
 ## Bot process
 
 The web panel and API run under Passenger. The Discord/War Thunder bot in `bot/` is a separate long-running process and should be run using a host feature that supports persistent Node.js workers. Passenger can restart or idle web processes, so it should not be the only host for a permanently connected Discord gateway bot.
+
+## `/auth/me` returns 500
+
+This build uses signed cookie sessions instead of `express-mysql-session`. This avoids Passenger requests failing when the hosting database user cannot create or access a `sessions` table.
+
+After replacing the files, run **NPM install** again and then **Restart App** in Plesk. A logged-out request to `/auth/me` should return:
+
+```json
+{"user":null}
+```

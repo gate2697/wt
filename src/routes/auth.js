@@ -34,7 +34,13 @@ authRouter.get('/discord/callback', async (req, res, next) => {
       [discordUser.id, username, discordUser.avatar || null, discordUser.email || null, discordUser.verified ? 1 : 0, JSON.stringify({ ids: roles, names: roleNames }), JSON.stringify(perms)]);
 
     const user = await get('SELECT * FROM users WHERE discord_id=?', [discordUser.id]);
-    req.session.user = { id: user.id, discordId: discordUser.id, username, avatar: discordUser.avatar, email: user.email, roles, roleNames, perms };
+    req.session.user = {
+      id: user.id,
+      discordId: discordUser.id,
+      username,
+      avatar: discordUser.avatar || null,
+      perms
+    };
     res.redirect(config.frontendUrl);
   } catch (err) {
     if (err.message === 'not_in_required_discord_server') {
@@ -49,5 +55,6 @@ authRouter.get('/me', (req, res) => {
 });
 
 authRouter.post('/logout', (req, res) => {
-  req.session.destroy(() => res.json({ ok: true }));
+  req.session = null;
+  res.json({ ok: true });
 });

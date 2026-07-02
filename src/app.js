@@ -1,8 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import session from 'express-session';
-import MySQLStoreFactory from 'express-mysql-session';
+import cookieSession from 'cookie-session';
 import rateLimit from 'express-rate-limit';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,22 +14,11 @@ import { botRouter } from './routes/bot.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const publicDir = path.resolve(__dirname, '../public');
-const MySQLStore = MySQLStoreFactory(session);
 
 export function createApp() {
   const app = express();
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
-
-  const sessionStore = new MySQLStore({
-    host: config.mysql.host,
-    port: config.mysql.port,
-    user: config.mysql.user,
-    password: config.mysql.password,
-    database: config.mysql.database,
-    createDatabaseTable: true,
-    schema: { tableName: 'sessions' }
-  });
 
   app.use(helmet({ crossOriginResourcePolicy: false }));
   app.use(cors({
@@ -43,18 +31,15 @@ export function createApp() {
   }));
   app.use(express.json({ limit: '1mb' }));
   app.use(rateLimit({ windowMs: 60_000, limit: 180, standardHeaders: true, legacyHeaders: false }));
-  app.use(session({
-    store: sessionStore,
-    secret: config.sessionSecret,
-    resave: false,
-    saveUninitialized: false,
-    proxy: true,
-    cookie: {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: config.cookiesSecure,
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    }
+  // Signed cookie sessions avoid Passenger/MySQL session-store failures.
+  // Keep the payload compact: OAuth state and a minimal authenticated user only.
+  app.use(cookieSession({
+    name: 'cb_panel_session',
+    keys: [config.sessionSecret],
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: config.cookiesSecure,
+    maxAge: 7 * 24 * 60 * 60 * 1000
   }));
 
   app.get('/health', (req, res) => res.json({
