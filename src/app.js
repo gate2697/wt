@@ -5,7 +5,7 @@ import cookieSession from 'cookie-session';
 import rateLimit from 'express-rate-limit';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { config } from './config.js';
+import { authConfigProblems, config } from './config.js';
 import { authRouter } from './routes/auth.js';
 import { linkCodesRouter } from './routes/linkCodes.js';
 import { bansRouter, publicBansRouter } from './routes/bans.js';
@@ -52,8 +52,15 @@ export function createApp() {
       clientIdConfigured: Boolean(config.discord.clientId),
       clientSecretConfigured: Boolean(config.discord.clientSecret),
       redirectUri: config.discord.redirectUri || null,
-      guildIdConfigured: Boolean(config.discord.guildId)
-    }
+      guildIdConfigured: Boolean(config.discord.guildId),
+      scopes: config.discord.oauthScopes.split(/\s+/).filter(Boolean)
+    },
+    session: {
+      secureCookie: config.cookiesSecure,
+      secretConfigured: config.sessionSecret !== 'dev-secret-change-me' && config.sessionSecret.length >= 32
+    },
+    databaseConfigured: Boolean(config.mysql.user && config.mysql.password && config.mysql.database),
+    authConfigurationProblems: authConfigProblems()
   }));
 
   app.use('/auth', authRouter);

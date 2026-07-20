@@ -1,33 +1,15 @@
 import express from 'express';
 import crypto from 'node:crypto';
-import { config } from '../config.js';
+import { authConfigProblems, config } from '../config.js';
 import { get, run } from '../db/database.js';
 import { discordAuthUrl, exchangeCode, fetchDiscordUser, fetchGuildMember } from '../discord/oauth.js';
 import { computePerms } from '../auth/perms.js';
 
 export const authRouter = express.Router();
 
-function oauthConfigProblems() {
-  const problems = [];
-  if (!config.discord.clientId) problems.push('DISCORD_CLIENT_ID');
-  if (!config.discord.clientSecret) problems.push('DISCORD_CLIENT_SECRET');
-  if (!config.discord.redirectUri) problems.push('DISCORD_REDIRECT_URI');
-  else {
-    try {
-      const redirect = new URL(config.discord.redirectUri);
-      if (redirect.protocol !== 'https:' && redirect.hostname !== 'localhost') {
-        problems.push('DISCORD_REDIRECT_URI must use HTTPS');
-      }
-    } catch {
-      problems.push('DISCORD_REDIRECT_URI is not a valid absolute URL');
-    }
-  }
-  return problems;
-}
-
 authRouter.get('/discord', (req, res, next) => {
   try {
-    const problems = oauthConfigProblems();
+    const problems = authConfigProblems();
     if (problems.length) {
       return res.status(503).json({
         error: 'discord_oauth_not_configured',
@@ -50,6 +32,10 @@ authRouter.get('/discord', (req, res, next) => {
 
 authRouter.get('/discord/callback', async (req, res, next) => {
   try {
+    if (req.query.error) {
+      return res.status(400).send('Discord login was cancelled or denied. Start the login again when you are ready.');
+    }
+
     const storedState = req.session?.oauthState;
     const stateCreatedAt = Number(req.session?.oauthStateCreatedAt || 0);
     const stateExpired = !stateCreatedAt || Date.now() - stateCreatedAt > 10 * 60_000;
@@ -70,14 +56,28 @@ authRouter.get('/discord/callback', async (req, res, next) => {
     const perms = computePerms(roles, roleNames);
     const username = `${discordUser.username}${discordUser.discriminator && discordUser.discriminator !== '0' ? '#' + discordUser.discriminator : ''}`;
 
-    await run(`INSERT INTO users (discord_id, username, avatar, email, email_verified, roles_json, perms_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE username=VALUES(username), avatar=VALUES(avatar),
-      email=VALUES(email), email_verified=VALUES(email_verified),
-      roles_json=VALUES(roles_json), perms_json=VALUES(perms_json)`,
-      [discordUser.id, username, discordUser.avatar || null, discordUser.email || null, discordUser.verified ? 1 : 0, JSON.stringify({ ids: roles, names: roleNames }), JSON.stringify(perms)]);
+    let user;
+    try {
+      await run(`INSERT INTO users (discord_id, username, avatar, email, email_verified, roles_json, perms_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE username=VALUES(username), avatar=VALUES(avatar),
+        email=VALUES(email), email_verified=VALUES(email_verified),
+        roles_json=VALUES(roles_json), perms_json=VALUES(perms_json)`,
+        [discordUser.id, username, discordUser.avatar || null, discordUser.email || null, discordUser.verified ? 1 : 0, JSON.stringify({ ids: roles, names: roleNames }), JSON.stringify(perms)]);
 
-    const user = await get('SELECT * FROM users WHERE discord_id=?', [discordUser.id]);
+      user = await get('SELECT * FROM users WHERE discord_id=?', [discordUser.id]);
+    } catch (databaseError) {
+      console.error('Discord OAuth database persistence failed:', databaseError);
+      const error = new Error('auth_database_unavailable');
+      error.statusCode = 503;
+      throw error;
+    }
+
+    if (!user) {
+      const error = new Error('auth_user_record_missing');
+      error.statusCode = 503;
+      throw error;
+    }
     req.session.user = {
       id: user.id,
       discordId: discordUser.id,

@@ -1,10 +1,20 @@
 import { config } from '../config.js';
 
 const API = 'https://discord.com/api/v10';
+const AUTHORIZE_URL = 'https://discord.com/oauth2/authorize';
+const TOKEN_URL = 'https://discord.com/api/oauth2/token';
 let guildRoleCache = { at: 0, map: new Map() };
 
 async function discordJson(url, options = {}, label = 'Discord request') {
-  const res = await fetch(url, options);
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      accept: 'application/json',
+      'user-agent': `CB-Ban-Panel/1.0 (${config.publicBaseUrl || 'https://golf-cb.xyz'})`,
+      ...(options.headers || {})
+    },
+    signal: options.signal || AbortSignal.timeout(10_000)
+  });
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
@@ -26,7 +36,7 @@ export function discordAuthUrl(state) {
     scope: config.discord.oauthScopes,
     state
   });
-  return `${API}/oauth2/authorize?${params.toString()}`;
+  return `${AUTHORIZE_URL}?${params.toString()}`;
 }
 
 export async function exchangeCode(code) {
@@ -37,7 +47,7 @@ export async function exchangeCode(code) {
     code,
     redirect_uri: config.discord.redirectUri
   });
-  return discordJson(`${API}/oauth2/token`, {
+  return discordJson(TOKEN_URL, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body
@@ -79,10 +89,19 @@ export async function fetchGuildMember(accessToken, discordUserId) {
   if (!config.discord.guildId) return { roles: [], roleNames: [] };
 
   let member = null;
+  if (config.discord.botToken) {
+    try {
+      member = await fetchMemberWithBotToken(discordUserId);
+    } catch (err) {
+      // A stale bot token or a bot that is no longer in the guild must not break
+      // user sign-in. The OAuth token is a valid fallback when the proper scope
+      // was requested.
+      console.warn('Discord bot member lookup failed; falling back to the OAuth user token.', err.message);
+    }
+  }
+
   try {
-    member = config.discord.botToken
-      ? await fetchMemberWithBotToken(discordUserId)
-      : await fetchMemberWithUserToken(accessToken);
+    member = member || await fetchMemberWithUserToken(accessToken);
   } catch (err) {
     if (err.statusCode === 404) {
       if (config.discord.requireGuildMembership) {

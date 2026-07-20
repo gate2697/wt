@@ -1,111 +1,96 @@
-# Plesk + Phusion Passenger deployment
+# Plesk + Passenger deployment for golf-cb.xyz
 
-This build is designed to run as one native Plesk Node.js application managed by Phusion Passenger. It does **not** bind to a hard-coded port. Passenger supplies `process.env.PORT` when Plesk starts the app.
+This repository is one Plesk Node.js application. Passenger supplies `PORT`;
+never add a custom `PORT` environment variable in Plesk.
 
-## Upload layout
+## File layout and Plesk settings
 
-Upload the contents of this folder into the app root, for example:
-
-```text
-/httpdocs/backend/
-  server.cjs
-  package.json
-  .env
-  src/
-  public/
-  scripts/
-  frontend-src/
-  bot/
-```
-
-## Plesk Node.js settings
-
-Use these values:
+For a Git checkout located at `/httpdocs`, use:
 
 ```text
-Application Root: /httpdocs/backend
-Document Root: /httpdocs/backend/public
+Application Root: /httpdocs
+Document Root: /httpdocs/public
 Application Startup File: server.cjs
 Application Mode: production
 Node.js Version: 20.x or newer
 ```
 
-The Document Root must be inside the Application Root. Do not set the startup file to a file outside the application root.
+The important rule is that `server.cjs`, `package.json`, `src/`, and `public/`
+must all be inside the selected Application Root. The Document Root must be its
+`public` child. Do not select `/httpdocs/backend`; that directory is an older,
+separate implementation and does not contain the production startup file.
 
-## Install and build
+## Environment
 
-In Plesk's Node.js screen, run **NPM install**. Then run these scripts:
+Copy `.env.example` to `.env` in the Application Root, or add the same names in
+Plesk's Custom environment variables. Plesk values take priority over `.env`.
+
+Values that must be supplied privately:
 
 ```text
-build:frontend
-migrate
+SESSION_SECRET
+MYSQL_USER
+MYSQL_PASSWORD
+MYSQL_DATABASE
+DISCORD_CLIENT_SECRET
+BOT_API_TOKEN
 ```
 
-The zip already includes a production frontend build in `public/`, but `build:frontend` is safe to run again after edits.
+Keep these exact public values:
 
-Install the optional War Thunder Python resolver if your hosting plan allows Python packages:
-
-```bash
-python3 -m pip install -r requirements.txt
+```env
+NODE_ENV=production
+PUBLIC_BASE_URL=https://golf-cb.xyz
+FRONTEND_URL=https://golf-cb.xyz
+COOKIE_SECURE=true
+DISCORD_CLIENT_ID=1510907031568252938
+DISCORD_REDIRECT_URI=https://golf-cb.xyz/auth/discord/callback
+DISCORD_OAUTH_SCOPES=identify email guilds.members.read
+DISCORD_GUILD_ID=1495608662025048125
+DISCORD_REQUIRE_GUILD_MEMBERSHIP=true
 ```
 
-## Environment variables
+Use numeric Discord role IDs in `CB_MOD_PERMS`, `CB_HMOD_PERMS`, and
+`CB_HIGHMOD_PERMS`. Role names require a working `DISCORD_BOT_TOKEN`; numeric IDs
+do not.
 
-Copy `.env.example` to `.env` in the Application Root, or add the same values in Plesk's custom environment variables. Do **not** set `PORT` yourself.
-
-Required Discord Developer Portal redirect:
+In Discord Developer Portal > OAuth2 > Redirects, register exactly:
 
 ```text
 https://golf-cb.xyz/auth/discord/callback
 ```
 
-For role permissions, use either Discord role names or role IDs:
+There is no trailing slash.
+
+## Install and deploy
+
+From the Application Root (or through Plesk's script runner):
 
 ```text
-CB_MOD_PERMS=cbmodperms
-CB_HMOD_PERMS=cbhmodperms
-CB_HIGHMOD_PERMS=highmodperms
+NPM install
+build:frontend
+migrate
+diagnose:auth
 ```
 
-Role IDs are the most reliable. Role names work when `DISCORD_BOT_TOKEN` can read guild roles.
+`diagnose:auth` prints only pass/fail status; it does not print secret values.
+After it passes, use Plesk's **Restart App** button.
 
-## Start and restart
+## Verify in order
 
-Use Plesk's **Restart App** button. Do not manually run `npm run start` from SSH unless you are testing outside Passenger with a temporary `PORT` value.
+1. `https://golf-cb.xyz/health` returns JSON with
+   `authConfigurationProblems: []` and `databaseConfigured: true`.
+2. `https://golf-cb.xyz/auth/me` returns `{"user":null}` while logged out.
+3. `https://golf-cb.xyz/auth/discord` redirects to `discord.com/oauth2/authorize`.
+4. Complete one login. The callback should return to `https://golf-cb.xyz`.
 
-## Test URLs
+If step 3 fails with 503, the response names the missing configuration. If the
+callback returns `auth_database_unavailable`, rerun `migrate` and check the
+MySQL credentials/permissions. A Discord 400 error normally means the client
+secret or redirect URI does not match the Discord application.
 
-```text
-https://golf-cb.xyz/health
-https://golf-cb.xyz/auth/discord
-https://golf-cb.xyz/auth/me
-```
+## Secret rotation
 
-## Bot process
-
-The web panel and API run under Passenger. The Discord/War Thunder bot in `bot/` is a separate long-running process and should be run using a host feature that supports persistent Node.js workers. Passenger can restart or idle web processes, so it should not be the only host for a permanently connected Discord gateway bot.
-
-## `/auth/me` returns 500
-
-This build uses signed cookie sessions instead of `express-mysql-session`. This avoids Passenger requests failing when the hosting database user cannot create or access a `sessions` table.
-
-After replacing the files, run **NPM install** again and then **Restart App** in Plesk. A logged-out request to `/auth/me` should return:
-
-```json
-{"user":null}
-```
-
-## Discord OAuth 503/500 check
-
-Open `/health` after restarting the app. The `discordOAuth` object must show:
-
-- `clientIdConfigured: true`
-- `clientSecretConfigured: true`
-- `redirectUri: "https://golf-cb.xyz/auth/discord/callback"`
-- `guildIdConfigured: true`
-
-The Discord Developer Portal OAuth2 redirect must match exactly:
-
-`https://golf-cb.xyz/auth/discord/callback`
-
-Do not add a trailing slash.
+An environment file was previously committed to this public repository. Removing
+it from the current branch does not remove it from Git history. Rotate the Discord
+client secret, session secret, and bot API token before deploying this revision.

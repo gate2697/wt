@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+backend/.env
+bot/.env
+bot/.env copy
+frontend/.env
+node_modules/
+*/node_modules/
+*.log
+.DS_Store
+__pycache__/
+*.py[cod]
