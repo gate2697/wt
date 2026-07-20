@@ -72,13 +72,10 @@ npm run build:frontend
 npm run migrate
 npm run diagnose:auth
 npm run diagnose:app
-npm run diagnose:startup
 ```
 
 These are npm scripts; you do not need to invoke `node` yourself. The two
 diagnostics print only pass/fail status and do not print secret values.
-`diagnose:startup` also launches `server.cjs` briefly with a temporary port;
-it does not change the running Plesk application.
 After it passes, use Plesk's **Restart App** button.
 
 ## Verify in order

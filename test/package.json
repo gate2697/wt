@@ -9,7 +9,6 @@
     "migrate": "node src/db/migrate.js",
     "diagnose:auth": "node scripts/diagnose-auth.js",
     "diagnose:app": "node scripts/diagnose-app.js",
-    "diagnose:startup": "node scripts/diagnose-startup.js",
     "test": "node --test",
     "build:frontend": "npm --prefix frontend-src install && npm --prefix frontend-src run build",
     "install:bot": "npm --prefix bot install",
