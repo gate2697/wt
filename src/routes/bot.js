@@ -27,9 +27,20 @@ botRouter.post('/playerlist', requireBot, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// A War Thunder plugin can push a stable ID immediately after resolving a
+// player. The website then uses this alias when a moderator submits a ban
+// request, preventing a later nickname change from bypassing the ban.
+botRouter.post('/resolve-player', requireBot, async (req, res, next) => {
+  try {
+    const body = z.object({ username: z.string().trim().min(1).max(255), warthunderId: z.string().trim().min(1).max(128) }).parse(req.body || {});
+    await upsertAlias(body.warthunderId, body.username);
+    res.json({ ok: true, username: body.username, warthunderId: body.warthunderId });
+  } catch (err) { next(err); }
+});
+
 botRouter.get('/playerlist', requireLogin, async (req, res, next) => {
   try {
-    if (!req.session.user.perms?.mod) return res.status(403).json({ error: 'missing_mod_perms' });
+    if (!req.session.user.perms?.canModerate && !req.session.user.perms?.mod) return res.status(403).json({ error: 'missing_mod_perms' });
     const players = await all('SELECT * FROM active_players ORDER BY seen_at DESC');
     res.json({ players });
   } catch (err) { next(err); }

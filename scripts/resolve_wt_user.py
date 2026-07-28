@@ -11,19 +11,20 @@ Usage:
 Outputs JSON to stdout:
     {"ok": true, "id": "123", "username": "SomePlayerName", ...}
 
-Duplicate-safety behavior:
+Duplicate-safe behavior:
 - If the input has no suffix, this tries:
     name
     name@live
     name@psn
-- It checks every successful exact/case-insensitive exact result before picking.
-- If multiple different IDs exist, it returns duplicate_accounts_found instead of guessing.
+- It checks every successful exact/case-insensitive exact result.
+- If multiple different IDs exist, it returns every distinct matching account so
+  the site can create one ban per account instead of silently choosing one.
 """
 from __future__ import annotations
 
 import json
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 SAFE_MATCH_TYPES = {"exact", "case_insensitive_exact"}
 
@@ -36,26 +37,33 @@ def fail(code: str, message: str, *, details: Any = None, exit_code: int = 1) ->
     raise SystemExit(exit_code)
 
 
-def choose_match(id_nick_map: Dict[str, str], username: str) -> Tuple[Optional[str], Optional[str], str]:
-    """Prefer exact match, then case-insensitive exact, then first prefix result."""
+def choose_matches(id_nick_map: Dict[str, str], username: str) -> List[Tuple[str, str, str]]:
+    """Return every exact match, or one safe fallback when no exact match exists."""
     if not id_nick_map:
-        return None, None, "none"
+        return []
 
-    if username in id_nick_map.values():
-        for user_id, nick in id_nick_map.items():
-            if nick == username:
-                return str(user_id), nick, "exact"
+    exact = [
+        (str(user_id), str(nick), "exact")
+        for user_id, nick in id_nick_map.items()
+        if str(nick) == username
+    ]
+    if exact:
+        return exact
 
     wanted = username.casefold()
-    for user_id, nick in id_nick_map.items():
-        if str(nick).casefold() == wanted:
-            return str(user_id), str(nick), "case_insensitive_exact"
+    case_insensitive = [
+        (str(user_id), str(nick), "case_insensitive_exact")
+        for user_id, nick in id_nick_map.items()
+        if str(nick).casefold() == wanted
+    ]
+    if case_insensitive:
+        return case_insensitive
 
     # wt-profile-tool's lookup is prefix-based, so a partial match can come back.
-    # We expose it for auditing, but the duplicate-safe resolver will not prefer it
-    # over exact matches unless it is the only usable result.
+    # Expose one fallback for auditing, but prefer every exact result across all
+    # platform suffix checks whenever one exists.
     user_id, nick = next(iter(id_nick_map.items()))
-    return str(user_id), str(nick), "prefix_first_result"
+    return [(str(user_id), str(nick), "prefix_first_result")]
 
 
 def build_lookup_names(username: str) -> list[str]:
@@ -72,33 +80,40 @@ def build_lookup_names(username: str) -> list[str]:
 def lookup_once(client: Any, lookup_name: str) -> Dict[str, Any]:
     data = client.get_player_userid_by_prefix_nick(lookup_name)
     id_nick_map = getattr(data, "id_nick_map", None) or {}
-    user_id, nick, match_type = choose_match(id_nick_map, lookup_name)
+    matches = choose_matches(id_nick_map, lookup_name)
 
     return {
         "lookupName": lookup_name,
-        "id": user_id,
-        "username": nick or lookup_name,
-        "matchType": match_type,
+        "matches": [
+            {"id": user_id, "username": nick, "matchType": match_type}
+            for user_id, nick, match_type in matches
+        ],
+        "id": matches[0][0] if matches else None,
+        "username": matches[0][1] if matches else lookup_name,
+        "matchType": matches[0][2] if matches else "none",
         "raw": {"idNickMap": id_nick_map},
     }
 
 
 def summarize_attempt(result: Dict[str, Any]) -> Dict[str, Any]:
+    matches = result.get("matches", [])
     return {
         "lookupName": result.get("lookupName"),
-        "ok": bool(result.get("id")),
-        "id": str(result["id"]) if result.get("id") else None,
-        "username": result.get("username"),
-        "matchType": result.get("matchType"),
+        "ok": bool(matches),
+        "id": str(matches[0]["id"]) if matches else None,
+        "ids": [str(match["id"]) for match in matches],
+        "username": matches[0].get("username") if matches else result.get("username"),
+        "matchType": matches[0].get("matchType") if matches else result.get("matchType"),
         "results": result.get("raw", {}).get("idNickMap", {}),
     }
 
 
-def choose_final_result(requested_username: str, successes: List[Dict[str, Any]], attempts: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Pick one result only when it is safe.
+def choose_final_results(requested_username: str, successes: List[Dict[str, Any]], attempts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Return one representative row for every distinct matching account.
 
-    If both `player` and `player@live` exist as different accounts, this returns
-    an error instead of accidentally banning the wrong player.
+    Exact and case-insensitive exact matches are preferred over prefix fallback
+    results. This prevents a broad prefix result from adding an unrelated
+    account when an exact platform match already exists.
     """
     if not successes:
         fail(
@@ -115,36 +130,15 @@ def choose_final_result(requested_username: str, successes: List[Dict[str, Any]]
     for item in usable:
         by_id.setdefault(str(item["id"]), []).append(item)
 
-    if len(by_id) > 1:
-        duplicate_accounts = [
-            {
-                "id": user_id,
-                "usernames": sorted({str(x.get("username")) for x in rows if x.get("username")}),
-                "lookupNames": [str(x.get("lookupName")) for x in rows],
-                "matchTypes": sorted({str(x.get("matchType")) for x in rows if x.get("matchType")}),
-            }
-            for user_id, rows in by_id.items()
-        ]
-        fail(
-            "duplicate_accounts_found",
-            "More than one matching War Thunder account exists. Enter the exact name with @live or @psn, or enter the War Thunder ID manually so the wrong person is not banned.",
-            details={
-                "requestedUsername": requested_username,
-                "duplicateAccounts": duplicate_accounts,
-                "attempts": attempts,
-            },
-        )
-
-    # One unique ID is safe. Prefer exact plain-name match, then any exact match,
-    # then the first usable fallback/prefix result.
-    only_id = next(iter(by_id.keys()))
-    rows = by_id[only_id]
-    rows.sort(key=lambda r: (
-        0 if r.get("lookupName") == requested_username and r.get("matchType") in SAFE_MATCH_TYPES else
-        1 if r.get("matchType") in SAFE_MATCH_TYPES else
-        2
-    ))
-    return rows[0]
+    selected: List[Dict[str, Any]] = []
+    for rows in by_id.values():
+        rows.sort(key=lambda r: (
+            0 if r.get("lookupName") == requested_username and r.get("matchType") in SAFE_MATCH_TYPES else
+            1 if r.get("matchType") in SAFE_MATCH_TYPES else
+            2
+        ))
+        selected.append(rows[0])
+    return selected
 
 
 def main() -> None:
@@ -172,8 +166,14 @@ def main() -> None:
             try:
                 result = lookup_once(client, lookup_name)
                 attempts.append(summarize_attempt(result))
-                if result.get("id"):
-                    successes.append(result)
+                for match in result.get("matches", []):
+                    successes.append({
+                        "lookupName": lookup_name,
+                        "id": str(match["id"]),
+                        "username": match.get("username") or lookup_name,
+                        "matchType": match.get("matchType") or "none",
+                        "raw": result.get("raw", {}),
+                    })
             except Exception as exc:
                 attempts.append({
                     "lookupName": lookup_name,
@@ -181,26 +181,45 @@ def main() -> None:
                     "error": str(exc),
                 })
 
-        result = choose_final_result(requested_username, successes, attempts)
-        duplicate_same_id = [a for a in attempts if a.get("ok") and str(a.get("id")) == str(result["id"])]
+        results = choose_final_results(requested_username, successes, attempts)
+        accounts = [
+            {
+                "id": str(result["id"]),
+                "username": result["username"],
+                "requestedUsername": requested_username,
+                "resolvedLookupName": result["lookupName"],
+                "usedFallback": result["lookupName"] != requested_username,
+                "matchType": result["matchType"],
+                "raw": result["raw"],
+            }
+            for result in results
+        ]
+        primary = accounts[0]
+        unique_ids = sorted({str(s["id"]) for s in successes if s.get("id")})
+        same_id_matches = [
+            attempt for attempt in attempts
+            if any(str(match_id) == str(primary["id"]) for match_id in attempt.get("ids", []))
+        ]
 
         print(json.dumps({
             "ok": True,
-            "id": str(result["id"]),
-            "username": result["username"],
+            "id": primary["id"],
+            "username": primary["username"],
             "requestedUsername": requested_username,
-            "resolvedLookupName": result["lookupName"],
-            "usedFallback": result["lookupName"] != requested_username,
-            "matchType": result["matchType"],
+            "resolvedLookupName": primary["resolvedLookupName"],
+            "usedFallback": primary["usedFallback"],
+            "matchType": primary["matchType"],
             "attemptedUsernames": [a["lookupName"] for a in attempts],
+            "accounts": accounts,
             "duplicateCheck": {
                 "checked": True,
-                "uniqueMatchingIds": sorted({str(s["id"]) for s in successes if s.get("id")}),
-                "sameIdMatches": duplicate_same_id,
+                "uniqueMatchingIds": unique_ids,
+                "accountCount": len(accounts),
+                "sameIdMatches": same_id_matches,
                 "ambiguous": False,
             },
             "attempts": attempts,
-            "raw": result["raw"],
+            "raw": primary["raw"],
         }, ensure_ascii=False))
     except SystemExit:
         raise

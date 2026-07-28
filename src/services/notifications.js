@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import { all, run } from '../db/database.js';
 import { config } from '../config.js';
+import { sendDiscordDirectMessage } from './discordMessaging.js';
 
 function formatDuration(ban) {
   if (!ban.ends_at) return 'Permanent / no scheduled end time';
@@ -35,21 +36,6 @@ async function getLinkedUsersForBan(ban) {
   `, [ban.warthunder_id || null, ban.warthunder_id || null, ban.warthunder_username || '']);
 }
 
-async function sendDiscordDm(discordId, message) {
-  if (!config.discord.botToken || !discordId) return { skipped: true, reason: 'missing_discord_bot_token_or_id' };
-  const headers = { authorization: `Bot ${config.discord.botToken}`, 'content-type': 'application/json' };
-  const channelRes = await fetch('https://discord.com/api/v10/users/@me/channels', {
-    method: 'POST', headers, body: JSON.stringify({ recipient_id: String(discordId) })
-  });
-  if (!channelRes.ok) return { ok: false, error: `dm_channel_failed_${channelRes.status}` };
-  const channel = await channelRes.json();
-  const msgRes = await fetch(`https://discord.com/api/v10/channels/${channel.id}/messages`, {
-    method: 'POST', headers, body: JSON.stringify({ content: message.slice(0, 1900) })
-  });
-  if (!msgRes.ok) return { ok: false, error: `dm_send_failed_${msgRes.status}` };
-  return { ok: true };
-}
-
 async function sendEmail(to, subject, text) {
   const smtp = config.notifications.smtp;
   if (!to || !smtp.host || !smtp.user || !smtp.pass || !config.notifications.fromEmail) {
@@ -71,7 +57,7 @@ export async function notifyLinkedUsersOfBan(ban) {
   const results = [];
   for (const user of users) {
     const entry = { userId: user.id, discordId: user.discord_id, email: user.email || null };
-    try { entry.discord = await sendDiscordDm(user.discord_id, notice.discord); }
+    try { entry.discord = await sendDiscordDirectMessage(user.discord_id, notice.discord); }
     catch (err) { entry.discord = { ok: false, error: err.message }; }
     try { entry.emailResult = await sendEmail(user.email, notice.subject, notice.text); }
     catch (err) { entry.emailResult = { ok: false, error: err.message }; }

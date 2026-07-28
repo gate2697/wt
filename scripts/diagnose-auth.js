@@ -6,7 +6,14 @@ const add = (name, ok, detail = '') => checks.push({ name, ok: Boolean(ok), deta
 
 const expectedRedirect = `${config.publicBaseUrl || 'https://golf-cb.xyz'}/auth/discord/callback`;
 const scopes = new Set(config.discord.oauthScopes.split(/\s+/).filter(Boolean));
-const allConfiguredRoles = [...config.roles.mod, ...config.roles.hmod, ...config.roles.highmod];
+const roleEnvNames = [
+  'CB_TRIAL_MOD_PERMS', 'CB_MOD_PERMS', 'CB_HMOD_PERMS',
+  'CB_ADMIN_PERMS', 'CB_HEAD_ADMIN_PERMS', 'CB_OWNER_PERMS',
+  'CB_MAP_CREATOR_PERMS',
+  // Deprecated compatibility mapping; it is treated as Admin authority.
+  'CB_HIGHMOD_PERMS'
+];
+const allConfiguredRoles = roleEnvNames.flatMap((name) => (process.env[name] || '').split(',').map((value) => value.trim()).filter(Boolean));
 const usingOnlyNumericRoleIds = allConfiguredRoles.length > 0 && allConfiguredRoles.every((role) => /^\d{16,22}$/.test(role));
 
 add('PUBLIC_BASE_URL', config.publicBaseUrl === 'https://golf-cb.xyz', config.publicBaseUrl || 'missing');
@@ -20,6 +27,7 @@ add('Discord identify scope', scopes.has('identify'), config.discord.oauthScopes
 add('Discord member scope', scopes.has('guilds.members.read') || Boolean(config.discord.botToken), config.discord.oauthScopes);
 add('Discord guild ID', Boolean(config.discord.guildId), config.discord.guildId || 'missing');
 add('moderator role mapping', usingOnlyNumericRoleIds || Boolean(config.discord.botToken), usingOnlyNumericRoleIds ? 'numeric IDs' : config.discord.botToken ? 'role names can be resolved by bot' : 'use numeric role IDs or configure DISCORD_BOT_TOKEN');
+add('War Thunder stable-ID enforcement', !config.warthunder.allowUnresolvedBans, config.warthunder.allowUnresolvedBans ? 'WARNING: username-only bans can be bypassed by a nickname change' : config.warthunder.pluginResolverUrl ? 'plugin resolver configured' : 'plugin-pushed aliases or Python resolver required');
 add('MySQL environment', Boolean(config.mysql.user && config.mysql.password && config.mysql.database), 'MYSQL_USER, MYSQL_PASSWORD, and MYSQL_DATABASE are required');
 
 try {

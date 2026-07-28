@@ -43,20 +43,41 @@ export const config = {
     botToken: process.env.DISCORD_BOT_TOKEN || ''
   },
   roles: {
-    mod: list('CB_MOD_PERMS', 'cbmodperms'),
-    hmod: list('CB_HMOD_PERMS', 'cbhmodperms'),
-    highmod: list('CB_HIGHMOD_PERMS', 'highmodperms')
+    // Role values may be Discord role IDs or names. Keep the legacy
+    // cb* permission names while also making the hierarchy understandable
+    // for a fresh install.
+    trial: list('CB_TRIAL_MOD_PERMS', 'cbtrialmodperms,trialmod,trial mod,trial moderator'),
+    mod: list('CB_MOD_PERMS', 'cbmodperms,mod,moderator'),
+    hmod: list('CB_HMOD_PERMS', 'cbhmodperms,hmod,head mod,head moderator'),
+    admin: list('CB_ADMIN_PERMS', 'admin,administrator'),
+    headAdmin: list('CB_HEAD_ADMIN_PERMS', 'headadmin,head admin,head administrator'),
+    owner: list('CB_OWNER_PERMS', 'owner,server owner'),
+    // Map creators can manage the public map catalogue without inheriting a
+    // moderation rank. HMods and above are also allowed by the route guard so
+    // the moderation team can recover a map catalogue when needed.
+    mapCreator: list('CB_MAP_CREATOR_PERMS', 'mapcreator,map creator,map maker,map author'),
+    // Kept as a migration alias for existing deployments. It maps to Admin
+    // authority but is no longer presented as a separate level.
+    legacyHighmod: list('CB_HIGHMOD_PERMS', '')
   },
   botApiToken: process.env.BOT_API_TOKEN || process.env.BOT_API_KEY || 'change-me-bot-token',
   warthunder: {
     pythonBin: process.env.PYTHON_BIN || (process.platform === 'win32' ? 'python' : 'python3'),
     resolverScript: process.env.WT_RESOLVER_SCRIPT || '',
+    pluginResolverUrl: process.env.WT_PLUGIN_RESOLVER_URL || process.env.WT_RESOLVER_URL || '',
+    pluginResolverToken: process.env.WT_PLUGIN_RESOLVER_TOKEN || process.env.WT_RESOLVER_TOKEN || '',
     resolverTimeoutMs: Number(process.env.WT_RESOLVER_TIMEOUT_MS || 15000),
-    allowUnresolvedBans: process.env.ALLOW_UNRESOLVED_BANS !== 'false'
+    // A username-only ban can be bypassed by changing the War Thunder name.
+    // Require the stable ID by default; explicitly opt out only for testing.
+    allowUnresolvedBans: process.env.ALLOW_UNRESOLVED_BANS === 'true'
   },
   statshark: {
     lookupUrl: process.env.STATSHARK_LOOKUP_URL || '',
     token: process.env.STATSHARK_API_TOKEN || ''
+  },
+  staff: {
+    minimumAge: Math.max(13, Number(process.env.STAFF_MINIMUM_AGE || 18)),
+    minimumGuildDays: Math.max(1, Number(process.env.STAFF_MINIMUM_GUILD_DAYS || 30))
   },
   notifications: {
     fromEmail: process.env.NOTIFY_FROM_EMAIL || '',

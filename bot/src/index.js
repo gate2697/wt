@@ -9,6 +9,10 @@ dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
 
 const BACKEND_URL = process.env.BACKEND_URL || process.env.SITE_API_URL || 'http://localhost:4000';
 const BOT_API_TOKEN = process.env.BOT_API_TOKEN || process.env.BOT_API_KEY || 'change-me-bot-token';
+const MAP_VOTE_AUTO_START = process.env.MAP_VOTE_AUTO_START !== 'false';
+const MAP_VOTE_ROUND_SECONDS = Math.max(30, Number(process.env.MAP_VOTE_ROUND_SECONDS || process.env.MAP_VOTE_DURATION_SECONDS || 900));
+let mapVoteTimer;
+let mapVoteSyncBusy = false;
 
 async function backend(path, options = {}) {
   const res = await fetch(`${BACKEND_URL}${path}`, {
@@ -19,6 +23,36 @@ async function backend(path, options = {}) {
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || `Backend error ${res.status}`);
   return json;
+}
+
+async function syncMapVote() {
+  if (!MAP_VOTE_AUTO_START || mapVoteSyncBusy) return;
+  mapVoteSyncBusy = true;
+  try {
+    const state = await backend('/api/map-votes/bot/state');
+    if (state.status === 'open') {
+      if (!state.endsAt || new Date(state.endsAt).getTime() > Date.now()) return;
+      const ended = await backend('/api/map-votes/bot/end', { method: 'POST', body: { roundId: state.roundId } });
+      const currentMapId = ended.selectedMap?.id || state.currentMap?.id || undefined;
+      await backend('/api/map-votes/bot/start', {
+        method: 'POST',
+        body: { currentMapId, durationSeconds: MAP_VOTE_ROUND_SECONDS }
+      });
+      console.log(`Map vote ${ended.roundId} ended with ${ended.selectedMap?.name || 'no eligible map'}; a new round started.`);
+      return;
+    }
+    await backend('/api/map-votes/bot/start', {
+      method: 'POST',
+      body: { currentMapId: state.currentMap?.id || undefined, durationSeconds: MAP_VOTE_ROUND_SECONDS }
+    });
+    console.log('Map vote started.');
+  } catch (error) {
+    // An empty catalogue is expected before the first Map Creator upload. Do
+    // not take the Discord bot offline just because a round cannot start yet.
+    if (!['no_active_maps', 'map_vote_already_open'].includes(error.message)) console.warn(`Map vote sync: ${error.message}`);
+  } finally {
+    mapVoteSyncBusy = false;
+  }
 }
 
 const commands = [
@@ -45,6 +79,8 @@ client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}`);
   await registerCommands(client.user.id).catch(console.error);
   await backend('/api/bot/cb-status', { method: 'POST', body: { online: true, name: 'CB Bot', inviteHint: 'Ask a mod/hmod for an invite if you cannot see CB.' } }).catch(console.error);
+  await syncMapVote();
+  mapVoteTimer = setInterval(() => syncMapVote().catch(() => {}), 30_000);
 });
 
 client.on('interactionCreate', async (interaction) => {
@@ -75,6 +111,7 @@ client.on('interactionCreate', async (interaction) => {
 // if (decision.action === 'kick') kick them in-game using your bot integration.
 
 process.on('SIGINT', async () => {
+  if (mapVoteTimer) clearInterval(mapVoteTimer);
   await backend('/api/bot/cb-status', { method: 'POST', body: { online: false } }).catch(()=>{});
   process.exit(0);
 });

@@ -72,6 +72,19 @@ async function fetchMemberWithBotToken(discordUserId) {
   }, 'Discord bot member fetch');
 }
 
+async function addRoleNames(member) {
+  const roleIds = (member?.roles || []).map(String);
+  let roleNames = [];
+  try {
+    const rolesById = await fetchGuildRoles();
+    roleNames = roleIds.map((id) => rolesById.get(id)).filter(Boolean);
+  } catch (err) {
+    // Numeric role IDs still work when the bot cannot enumerate role names.
+    console.warn('Could not resolve Discord role names. Use numeric role IDs in CB_*_PERMS or fix DISCORD_BOT_TOKEN permissions.', err.message);
+  }
+  return { ...member, roles: roleIds, roleNames };
+}
+
 export async function fetchGuildRoles() {
   if (!config.discord.botToken || !config.discord.guildId) return new Map();
   const now = Date.now();
@@ -83,6 +96,16 @@ export async function fetchGuildRoles() {
   for (const role of roles || []) map.set(String(role.id), role.name);
   guildRoleCache = { at: now, map };
   return map;
+}
+
+/** Refresh a member using the bot token without needing a stored OAuth token. */
+export async function fetchGuildMemberWithBotOnly(discordUserId) {
+  if (!config.discord.botToken || !config.discord.guildId) {
+    const error = new Error('discord_bot_token_required_for_permission_refresh');
+    error.statusCode = 503;
+    throw error;
+  }
+  return addRoleNames(await fetchMemberWithBotToken(discordUserId));
 }
 
 export async function fetchGuildMember(accessToken, discordUserId) {
@@ -114,15 +137,5 @@ export async function fetchGuildMember(accessToken, discordUserId) {
     throw err;
   }
 
-  const roleIds = (member.roles || []).map(String);
-  let roleNames = [];
-  try {
-    const rolesById = await fetchGuildRoles();
-    roleNames = roleIds.map((id) => rolesById.get(id)).filter(Boolean);
-  } catch (err) {
-    // Login should still work even if the bot cannot list role names. Role IDs can still be used in env.
-    console.warn('Could not resolve Discord role names. Use role IDs in CB_*_PERMS or fix DISCORD_BOT_TOKEN permissions.', err.message);
-  }
-
-  return { ...member, roles: roleIds, roleNames };
+  return addRoleNames(member);
 }

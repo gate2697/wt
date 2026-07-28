@@ -10,6 +10,12 @@ import { authRouter } from './routes/auth.js';
 import { linkCodesRouter } from './routes/linkCodes.js';
 import { bansRouter, publicBansRouter } from './routes/bans.js';
 import { botRouter } from './routes/bot.js';
+import { unbanRequestsRouter } from './routes/unbanRequests.js';
+import { staffApplicationsRouter } from './routes/staffApplications.js';
+import { banRequestsRouter } from './routes/banRequests.js';
+import { notificationsRouter } from './routes/notifications.js';
+import { mapsRouter } from './routes/maps.js';
+import { mapVotesRouter } from './routes/mapVotes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,7 +26,14 @@ export function createApp() {
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
 
-  app.use(helmet({ crossOriginResourcePolicy: false }));
+  app.use(helmet({
+    crossOriginResourcePolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        imgSrc: ["'self'", 'data:', 'blob:', 'https:']
+      }
+    }
+  }));
   app.use(cors({
     origin(origin, cb) {
       if (!origin) return cb(null, true);
@@ -67,6 +80,12 @@ export function createApp() {
   app.use('/api/auth', authRouter);
   app.use('/api/link-codes', linkCodesRouter);
   app.use('/api/bans', bansRouter);
+  app.use('/api/unban-requests', unbanRequestsRouter);
+  app.use('/api/staff-applications', staffApplicationsRouter);
+  app.use('/api/ban-requests', banRequestsRouter);
+  app.use('/api/notifications', notificationsRouter);
+  app.use('/api/maps', mapsRouter);
+  app.use('/api/map-votes', mapVotesRouter);
   app.use('/api/public/bans', publicBansRouter);
   app.use('/api/bot', botRouter);
 
@@ -81,6 +100,14 @@ export function createApp() {
   app.use((err, req, res, next) => {
     console.error(err);
     if (err?.name === 'ZodError') return res.status(400).json({ error: 'validation_error', details: err.errors });
+    if (err?.name === 'MulterError' || err?.code === 'LIMIT_FILE_SIZE' || err?.code === 'LIMIT_FILE_COUNT' || err?.code === 'LIMIT_PART_COUNT') {
+      const status = err.statusCode || 413;
+      const mapUploadError = err.field === 'image';
+      const code = mapUploadError
+        ? (err.code === 'LIMIT_FILE_SIZE' ? 'map_image_too_large' : 'map_image_upload_failed')
+        : err.code === 'LIMIT_FILE_SIZE' ? 'evidence_file_size_exceeded' : err.code === 'LIMIT_FILE_COUNT' ? 'evidence_file_count_exceeded' : 'evidence_upload_failed';
+      return res.status(status).json({ error: code });
+    }
     const status = err?.statusCode || 500;
     const safeMessage = status >= 500 && process.env.NODE_ENV === 'production' ? 'server_error' : (err.message || 'server_error');
     res.status(status).json({ error: safeMessage });
